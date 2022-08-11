@@ -79,24 +79,11 @@ if args.resume:
 elif args.loadckpt:
     # load the checkpoint file specified by args.loadckpt
     print("Loading model {}".format(args.loadckpt))
-    state_dict = torch.load(args.loadckpt)
-    
-    # # DispNetS from SfmLearner has one input, so check if conv1.0.weight has 3 channel.
-    # # If so, increae its channels to 6
-    # conv10w = state_dict['state_dict']['conv1.0.weight']
-    # if conv10w.size()[1] == 3:
-    #     state_dict['state_dict']['conv1.0.weight'] = torch.cat([conv10w, conv10w], 1)
-
+    state_dict = torch.load(args.loadckpt)    
     dispNet.load_state_dict(state_dict['state_dict'], strict=False)
-#else:
-#    dispNet.init_weights()
 
 
 print("Start at epoch {}".format(start_epoch))
-
-# DataParallel after loading pre-trained model due to init_weight()
-# - 'DataParallel' object has no attribute 'init_weights'
-#dispNet = nn.DataParallel(dispNet)
 
 def train():
     best_checkpoint_loss = 100
@@ -160,15 +147,6 @@ def train_sample(sample, compute_metrics=False):
 
     imgL, imgR, disp_gt = sample['left'], sample['right'], sample['disparity']
 
-    #gt_ = disp_gt[0, :, :]
-    #gt_ = torch.squeeze(gt_)
-    #gt_ = tensor2numpy(gt_)
-    #gt_ = np.array(gt_[:, :], dtype=np.uint8)
-
-    #fn = os.path.join("predictions", "groundtruth.jpg")
-    #io.imsave(fn, gt_)
-    
-
     imgL = imgL.cuda()
     imgR = imgR.cuda()
     disp_gt = disp_gt.cuda()
@@ -178,35 +156,11 @@ def train_sample(sample, compute_metrics=False):
     disp_ests = dispNet(imgL, imgR)
     mask = (disp_gt < args.maxdisp) & (disp_gt > 0)
 
-    #print("****")
-    #print(len(disp_ests))
-    #print(disp_ests[0].size())
-    #print(disp_gt.size())
-    #print(mask.size())    
-
-    #disp_gt2 = F.avg_pool2d(disp_gt, 5, stride = 2, padding=2)
-    #mask2 = (disp_gt2 < args.maxdisp) & (disp_gt2 > 0)    
-    #disp_gt3 = F.avg_pool2d(disp_gt2, 5, stride = 2, padding=2)
-    #mask3 = (disp_gt3 < args.maxdisp) & (disp_gt3 > 0)
-    #disp_gt4 = F.avg_pool2d(disp_gt3, 5, stride = 2, padding=2)
-    #mask4 = (disp_gt4 < args.maxdisp) & (disp_gt4 > 0)
-
-    #disp_gts = (disp_gt, disp_gt2, disp_gt3, disp_gt4)
-    #masks = (mask, mask2, mask3, mask4)
-    #loss = model_loss(disp_ests, disp_gt, mask)    
-
     disp_ests[0] = torch.squeeze(disp_ests[0], 1)
     for i in range(1, 4):        
         disp_ests[i] = F.interpolate(disp_ests[i], scale_factor=2**i, mode='bilinear')
         disp_ests[i] = torch.squeeze(disp_ests[i], 1)
 
-    #gt_ = disp_ests[0][0, :, :]
-    #gt_ = tensor2numpy(gt_)
-    #gt_ = np.array(gt_[:, :], dtype=np.float32)
-    #gt_ = np.round(gt_ * 256).astype(np.uint16)
-
-    #fn = os.path.join("predictions", "estimate.jpg")
-    #io.imsave(fn, gt_)
     
     loss = model_loss(disp_ests, disp_gt, mask)
 
@@ -220,13 +174,7 @@ def train_sample(sample, compute_metrics=False):
             scalar_outputs["Thres1"] = [Thres_metric(disp_est, disp_gt, mask, 1.0) for disp_est in disp_ests]
             scalar_outputs["Thres2"] = [Thres_metric(disp_est, disp_gt, mask, 2.0) for disp_est in disp_ests]
             scalar_outputs["Thres3"] = [Thres_metric(disp_est, disp_gt, mask, 3.0) for disp_est in disp_ests]
-            #image_outputs["errormap"] = [disp_error_image_func(disp_ests[0], disp_gt)]
-            #scalar_outputs["EPE"] = [EPE_metric(disp_ests[0], disp_gt, mask)]
-            #scalar_outputs["D1"] = [D1_metric(disp_ests[0], disp_gt, mask)]
-            #scalar_outputs["Thres1"] = [Thres_metric(disp_ests[0], disp_gt, mask, 1.0)]
-            #scalar_outputs["Thres2"] = [Thres_metric(disp_ests[0], disp_gt, mask, 2.0)]
-            #scalar_outputs["Thres3"] = [Thres_metric(disp_ests[0], disp_gt, mask, 3.0)]            
-
+          
     loss.backward()
     optimizer.step()
 
@@ -267,16 +215,6 @@ def test_sample(sample, compute_metrics=True):
 def model_loss(disp_ests, disp_gt, mask):
     weights = [1, 0.7, 0.5, 0.25]
     all_losses = []
-    for disp_est, weight in zip(disp_ests, weights):
-        all_losses.append(weight * F.smooth_l1_loss(disp_est[mask], disp_gt[mask], reduction='mean'))
-    #for disp_est, disp_gt, mask, weight in zip(disp_ests, disp_gts, masks, weights):        
-    #    all_losses.append(weight * F.smooth_l1_loss(disp_est[mask], disp_gt[mask], reduction='mean'))
-    return sum(all_losses)
-
-def model_loss_test(disp_ests, disp_gt, mask):
-    weights = [1.0]
-    all_losses = []
-    
     for disp_est, weight in zip(disp_ests, weights):
         all_losses.append(weight * F.smooth_l1_loss(disp_est[mask], disp_gt[mask], reduction='mean'))
     return sum(all_losses)

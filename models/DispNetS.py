@@ -93,6 +93,7 @@ class DispNetS(nn.Module):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 # Normalize weights with mean and variance
                 m.weight.data.normal_(0, math.sqrt(2. / n))
+                # Disable xavier_uniform initialization
                 #xavier_uniform_(m.weight)
                 if m.bias is not None:
                     zeros_(m.bias)
