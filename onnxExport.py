@@ -25,17 +25,18 @@ def main():
     dummy_input = (dummy_l, dummy_r)
     
     dispNet = models.DispNetS()    
+    dispNet = torch.nn.DataParallel(dispNet)
  
     checkpoint = torch.load(args.loadckpt)
    
     # DispNetS from SfmLearner has one input, so check if conv1.0.weight has 3 channel.
     # If so, increae its channels to 6
-    conv10w = checkpoint['state_dict']['conv1.0.weight']
-    if conv10w.size()[1] == 3:
-        checkpoint['state_dict']['conv1.0.weight'] = torch.cat([conv10w, conv10w], 1)    
+    #conv10w = checkpoint['state_dict']['conv1.0.weight']
+    #if conv10w.size()[1] == 3:
+    #    checkpoint['state_dict']['conv1.0.weight'] = torch.cat([conv10w, conv10w], 1)    
 
     dispNet.load_state_dict(checkpoint['state_dict'])
-    dispNet = torch.nn.DataParallel(dispNet)
+    
     
     dispNet.eval()
     #print(dispNet.module)

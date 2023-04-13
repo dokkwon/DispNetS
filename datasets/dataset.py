@@ -38,8 +38,7 @@ class SceneFlowDataset(Dataset):
 
         if self.training:
             w, h = left_img.size
-            crop_w, crop_h = 512, 256
-
+            crop_w, crop_h = 512, 512 # 256
             x1 = random.randint(0, w - crop_w)
             y1 = random.randint(0, h - crop_h)
 

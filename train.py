@@ -56,6 +56,7 @@ TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_wo
 TestImgLoader = DataLoader(test_dataset, args.test_batch_size, shuffle=False, num_workers=4, drop_last=False)
 
 # model, optimizer
+#dispNet = models.DispNetS(alpha=191, beta=0.0)
 dispNet = models.DispNetS()
 dispNet = nn.DataParallel(dispNet)
 dispNet.cuda()
@@ -66,13 +67,14 @@ optimizer = optim.Adam(dispNet.parameters(), lr=args.lr, betas=(0.9, 0.999))
 start_epoch = 0
 
 if args.resume:
-    # find all checkpoints file and sort according to epoch id
-    all_saved_ckpts = [fn for fn in os.listdir(args.logdir) if fn.endswith(".ckpt")]
-    all_saved_ckpts = sorted(all_saved_ckpts, key=lambda x: int(x.split('_')[-1].split('.')[0]))
-    # use the latest checkpoint file
-    loadckpt = os.path.join(args.logdir, all_saved_ckpts[-1])
-    print("Loading the latest model in logdir: {}".format(loadckpt))
-    state_dict = torch.load(loadckpt)
+    ## find all checkpoints file and sort according to epoch id
+    #all_saved_ckpts = [fn for fn in os.listdir(args.logdir) if fn.endswith(".ckpt")]
+    #all_saved_ckpts = sorted(all_saved_ckpts, key=lambda x: int(x.split('_')[-1].split('.')[0]))
+    ## use the latest checkpoint file
+    #loadckpt = os.path.join(args.logdir, all_saved_ckpts[-1])
+    #print("Loading the latest model in logdir: {}".format(loadckpt))
+    print("Loading the latest model in logdir: {}".format(args.loadckpt))
+    state_dict = torch.load(args.loadckpt)
     dispNet.load_state_dict(state_dict['state_dict'])
     optimizer.load_state_dict(state_dict['optimizer'])
     start_epoch = state_dict['epoch'] + 1
@@ -80,7 +82,7 @@ elif args.loadckpt:
     # load the checkpoint file specified by args.loadckpt
     print("Loading model {}".format(args.loadckpt))
     state_dict = torch.load(args.loadckpt)    
-    dispNet.load_state_dict(state_dict['state_dict'], strict=False)
+    dispNet.load_state_dict(state_dict['state_dict'], strict=True)
 
 
 print("Start at epoch {}".format(start_epoch))
@@ -100,10 +102,11 @@ def train():
                 save_scalars(logger, 'train', scalar_outputs, global_step)
                 save_images(logger, 'train', image_outputs, global_step)
             del scalar_outputs, image_outputs
-            print('Epoch {}/{}, Iter {}/{}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs,
-                                                                                       batch_idx,
-                                                                                       len(TrainImgLoader), loss,
-                                                                                       time.time() - start_time))
+            if batch_idx % 100 == 0:
+                print('Epoch {}/{}, Iter {}/{}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs,
+                                                                                           batch_idx,
+                                                                                           len(TrainImgLoader), loss,
+                                                                                           time.time() - start_time))
         # saving checkpoints
         if (epoch_idx + 1) % args.save_freq == 0:
             checkpoint_data = {'epoch': epoch_idx, 'state_dict': dispNet.state_dict(), 'optimizer': optimizer.state_dict()}
@@ -122,10 +125,11 @@ def train():
                 save_images(logger, 'test', image_outputs, global_step)
             avg_test_scalars.update(scalar_outputs)
             del scalar_outputs, image_outputs
-            print('Epoch {}/{}, Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(epoch_idx, args.epochs,
-                                                                                     batch_idx,
-                                                                                     len(TestImgLoader), loss,
-                                                                                     time.time() - start_time))
+            if batch_idx % 4 == 0:
+                print('Epoch {}/{}, Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(epoch_idx, args.epochs,
+                                                                                         batch_idx,
+                                                                                         len(TestImgLoader), loss,
+                                                                                         time.time() - start_time))
         avg_test_scalars = avg_test_scalars.mean()
 
         save_scalars(logger, 'fulltest', avg_test_scalars, len(TrainImgLoader) * (epoch_idx + 1))
@@ -135,7 +139,7 @@ def train():
         if avg_test_scalars['loss'] < best_checkpoint_loss:
             best_checkpoint_loss = avg_test_scalars['loss']
             print("Overwriting best checkpoint")
-            checkpoint_data = {'epoch': epoch_idx, 'state_dict': dispNet.module.state_dict(), 'optimizer': optimizer.state_dict()}
+            checkpoint_data = {'epoch': epoch_idx, 'state_dict': dispNet.state_dict(), 'optimizer': optimizer.state_dict()}
             torch.save(checkpoint_data, "{}/best.ckpt".format(args.logdir))
 
         gc.collect()
@@ -178,6 +182,9 @@ def train_sample(sample, compute_metrics=False):
     loss.backward()
     optimizer.step()
 
+    #for param in dispNet.parameters():
+    #    print(param.grad)
+
     return tensor2float(loss), tensor2float(scalar_outputs), image_outputs
 
 
@@ -213,7 +220,7 @@ def test_sample(sample, compute_metrics=True):
 
 
 def model_loss(disp_ests, disp_gt, mask):
-    weights = [1, 0.7, 0.5, 0.25]
+    weights = [1, 0.5, 0.25, 0.125]
     all_losses = []
     for disp_est, weight in zip(disp_ests, weights):
         all_losses.append(weight * F.smooth_l1_loss(disp_est[mask], disp_gt[mask], reduction='mean'))

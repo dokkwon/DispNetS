@@ -1,0 +1,10 @@
+python train.py --dataset drivingstereo --datapath /mnt/fourT/DLDataSets/driving_stereo --trainlist ./filenames/ds_train.txt --testlist ./filenames/ds_val.txt --epochs 400 --lrepochs "200:10" --batch_size 64 --test_batch_size 4 --logdir ./logs
+
+python prediction.py --datapath /mnt/fourT/DLDataSets/driving_stereo --testlist ./filenames/ds_test.txt --loadckpt ./checkpoints/best.ckpt --dataset drivingstereo --colored 1
+
+
+
+
+
+
+

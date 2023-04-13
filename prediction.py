@@ -39,7 +39,8 @@ dispNet.cuda()
 # load parameters
 print("Loading model {}".format(args.loadckpt))
 state_dict = torch.load(args.loadckpt)
-dispNet.module.load_state_dict(state_dict['state_dict'])
+#dispNet.module.load_state_dict(state_dict['state_dict'])
+dispNet.load_state_dict(state_dict['state_dict'])
 
 
 def test(args):
